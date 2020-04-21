@@ -6,7 +6,7 @@
 #include <string.h>
 #include<sys/time.h>
 using namespace std;
-#define testTimes  1
+#define testTimes  10
 #define uint8 unsigned char
 #define uint32 unsigned int
 #define uint16 unsigned short
