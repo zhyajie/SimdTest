@@ -4,12 +4,15 @@
 #include <arm_neon.h> //需要的头文件
 #include <time.h>
 #include <string.h>
+#include <climits>
 #include<sys/time.h>
 using namespace std;
-#define testTimes  100
+#define testTimes  1
 #define uint8 unsigned char
 #define uint32 unsigned int
 #define uint16 unsigned short
+#define int8 signed char
+#define int16 signed short
 //timeval结构定义为:
 // struct timeval{
 // long tv_sec; /*秒*/
@@ -37,7 +40,10 @@ public:
         vecAddUint8_B=new uint8[dataLen];
         vecAddUint8_C=new uint8[dataLen];
 
-
+		vecMatrixFloat32_A=new float[4*4];
+		vecMatrixFloat32_B=new float[4*4];
+		vecMatrixFloat32_C=new float[4*4];
+		
         arr2DGemmFloat32_A=new float*[gemmM];
         arr2DGemmFloat32_A[0]=new float [gemmM*gemmK];
         for(int i=1;i<gemmM;i++)
@@ -100,10 +106,16 @@ public:
 
         copyFloat32_A=new float [dataLen];
         copyInt32_A=new int [dataLen];
+		copyInt16_A=new int16 [dataLen];
+		copyInt8_A=new int8 [dataLen];
+		copyUint32_A=new uint32 [dataLen];
         copyUint16_A=new uint16 [dataLen];
         copyUint8_A=new uint8 [dataLen];
         copyFloat32_B=new float [dataLen];
         copyInt32_B=new int [dataLen];
+		copyInt16_B=new int16 [dataLen];
+		copyInt8_B=new int8 [dataLen];
+		copyUint32_B=new uint32 [dataLen];
         copyUint16_B=new uint16 [dataLen];
         copyUint8_B=new uint8 [dataLen];
 
@@ -134,9 +146,20 @@ public:
             vecAddUint8_A[i]=8;
             vecAddUint8_B[i]=2;
             copyFloat32_A[i]=i;
-            copyInt32_A[i]=i;
-            copyUint16_A[i]=i%10000;
-            copyUint8_A[i]=i%100;
+            if(i%2==0){
+                copyInt32_A[i]=i%int(INT32_MAX);
+                copyInt16_A[i]=i%int(INT16_MAX);
+                copyInt8_A[i]=i%int(CHAR_MAX);
+            }
+            else{
+                copyInt32_A[i]=-(i%int(INT32_MAX));
+                copyInt16_A[i]=-(i%int(INT16_MAX));
+                copyInt8_A[i]=-(i%int(CHAR_MAX));
+            }
+            
+			copyUint32_A[i]=i%int(UINT32_MAX);
+            copyUint16_A[i]=i%int(UINT16_MAX);
+            copyUint8_A[i]=i%int(UCHAR_MAX);
 
         }
         for(int i=0;i<100;i++){//由于uint8数据表示范围为0~255，所以在求和时会数据溢出，所以将前100位数据置1、uint16同理
@@ -168,6 +191,13 @@ public:
 				arr2DGemmInt32_C[i][j]=0;
             }
         }
+		for(int i=0;i<4;i++){
+			for(int j=0;j<4;j++){
+				vecMatrixFloat32_A[i*4+j]=i*4+j;
+				vecMatrixFloat32_B[i*4+j]=i+j*5;
+				vecMatrixFloat32_C[i*4+j]=0.0f;
+			}
+		}
     }
     void TestMain(){
         TestSumFloat32();
@@ -186,8 +216,19 @@ public:
         TestGemmUint8();
 
         TestCopyFloat32();
+		TestCopyInt32();
+		TestCopyUint16();
         TestCopyUint8();
 		
+		TestMatrixMulFloat32();
+		
+		TestCopyFloat32ToUint8();
+		
+		TestConvertInt8ToUint16();
+
+        TestConvertInt8ToUint8();
+
+        TestConvertUint8ToInt8();
 
     }
     void printTestResult(string info,double dur)
@@ -562,6 +603,66 @@ public:
         delete [] res;//释放开辟的内存块
         cout<<endl;
     }
+	
+	void TestCopyInt32(){
+        struct timeval t1,t2;
+        double timeuse;
+        gettimeofday(&t1,NULL);
+        for(int i=0;i<testTimes;i++){
+            CopyInt32(copyInt32_A,copyInt32_B,dataLen);
+        }
+        gettimeofday(&t2,NULL);
+        timeuse = (t2.tv_sec - t1.tv_sec)*1000000.0 + (t2.tv_usec - t1.tv_usec);
+        printTestResult("CopyInt32",timeuse);
+        //重新开辟一段内存将计算结果保存为了验证结果正确性
+        int *res=new int [dataLen];
+       for(int i=0;i<dataLen;i++)
+            res[i]=copyInt32_B[i];
+        gettimeofday(&t1,NULL);
+        for(int i=0;i<testTimes;i++){
+            CopyInt32Neon(copyInt32_A,copyInt32_B,dataLen);
+        }
+        gettimeofday(&t2,NULL);
+        timeuse = (t2.tv_sec - t1.tv_sec)*1000000.0 + (t2.tv_usec - t1.tv_usec);
+        printTestResult("CopyInt32Neon",timeuse);
+        //验证结果的正确性
+        for(int i=0;i<gemmM;i++){
+                if(res[i]!=copyInt32_B[i])
+                    cout<<"CopyInt32 error"<<":i="<<i<<endl;
+        }
+        delete [] res;//释放开辟的内存块
+        cout<<endl;
+    }
+	
+	void TestCopyUint16(){
+        struct timeval t1,t2;
+        double timeuse;
+        gettimeofday(&t1,NULL);
+        for(int i=0;i<testTimes;i++){
+            CopyUint16(copyUint16_A,copyUint16_B,dataLen);
+        }
+        gettimeofday(&t2,NULL);
+        timeuse = (t2.tv_sec - t1.tv_sec)*1000000.0 + (t2.tv_usec - t1.tv_usec);
+        printTestResult("CopyUint16",timeuse);
+        //重新开辟一段内存将计算结果保存为了验证结果正确性
+        uint16 *res=new uint16 [dataLen];
+       for(int i=0;i<dataLen;i++)
+            res[i]=copyUint16_B[i];
+        gettimeofday(&t1,NULL);
+        for(int i=0;i<testTimes;i++){
+            CopyUint16Neon(copyUint16_A,copyUint16_B,dataLen);
+        }
+        gettimeofday(&t2,NULL);
+        timeuse = (t2.tv_sec - t1.tv_sec)*1000000.0 + (t2.tv_usec - t1.tv_usec);
+        printTestResult("CopyUint16Neon",timeuse);
+        //验证结果的正确性
+        for(int i=0;i<gemmM;i++){
+                if(res[i]!=copyUint16_B[i])
+                    cout<<"CopyUint16 error"<<":i="<<i<<endl;
+        }
+        delete [] res;//释放开辟的内存块
+        cout<<endl;
+    }
 
     void TestCopyUint8(){
         struct timeval t1,t2;
@@ -595,6 +696,169 @@ public:
         delete [] res;//释放开辟的内存块
         cout<<endl;
     }
+	
+	void TestMatrixMulFloat32(){
+        struct timeval t1,t2;
+        double timeuse;
+        gettimeofday(&t1,NULL);
+        for(int i=0;i<testTimes;i++){
+            MatrixMulFloat32(vecMatrixFloat32_A,vecMatrixFloat32_B,vecMatrixFloat32_C);
+        }
+        gettimeofday(&t2,NULL);
+        timeuse = (t2.tv_sec - t1.tv_sec)*1000000.0 + (t2.tv_usec - t1.tv_usec);
+        printTestResult("MatrixMulFloat32",timeuse);
+        //重新开辟一段内存将计算结果保存为了验证结果正确性
+         //也可以用定义的C++模板函数   new2DArr<float>(res,gemmM,gemmN); 
+        float *res=new float[4*4];
+        for(int i=0;i<4*4;i++){
+            res[i]=vecMatrixFloat32_C[i];
+        }
+        gettimeofday(&t1,NULL);
+        for(int i=0;i<testTimes;i++){
+            MatrixMulFloat32Neon(vecMatrixFloat32_A,vecMatrixFloat32_B,vecMatrixFloat32_C);
+        }
+        gettimeofday(&t2,NULL);
+        timeuse = (t2.tv_sec - t1.tv_sec)*1000000.0 + (t2.tv_usec - t1.tv_usec);
+        printTestResult("MatrixMulFloat32Neon",timeuse);
+        //验证结果的正确性
+        for(int i=0;i<4*4;i++){
+            if(res[i]!=vecMatrixFloat32_C[i])
+                    cout<<"MatrixMulFloat32 error"<<":i="<<i<<endl;
+        }
+        delete [] res;//释放开辟的内存块
+        cout<<endl;
+    }
+	
+	void TestCopyFloat32ToUint8(){
+		struct timeval t1,t2;
+        double timeuse;
+        gettimeofday(&t1,NULL);
+        for(int i=0;i<testTimes;i++){
+            CopyFloat32ToUint8(copyFloat32_A,copyUint8_B,dataLen);
+        }
+        gettimeofday(&t2,NULL);
+        timeuse = (t2.tv_sec - t1.tv_sec)*1000000.0 + (t2.tv_usec - t1.tv_usec);
+        printTestResult("CopyFloat32ToUint8",timeuse);
+        //重新开辟一段内存将计算结果保存为了验证结果正确性
+        uint8 *res=new uint8 [dataLen];
+       for(int i=0;i<dataLen;i++){
+           res[i]=copyUint8_B[i];
+           copyUint8_B[i]=0;
+       }
+            
+        gettimeofday(&t1,NULL);
+        for(int i=0;i<testTimes;i++){
+            CopyFloat32ToUint8Neon(copyFloat32_A,copyUint8_B,dataLen);
+        }
+        gettimeofday(&t2,NULL);
+        timeuse = (t2.tv_sec - t1.tv_sec)*1000000.0 + (t2.tv_usec - t1.tv_usec);
+        printTestResult("CopyFloat32ToUint8Neon",timeuse);
+        //验证结果的正确性
+        for(int i=0;i<gemmM;i++){
+                if(res[i]!=copyUint8_B[i])
+                    cout<<"CopyFloat32ToUint8 error"<<":i="<<i<<endl;
+        }
+        delete [] res;//释放开辟的内存块
+        cout<<endl;
+	}
+	
+	void TestConvertInt8ToUint16(){
+		struct timeval t1,t2;
+        double timeuse;
+        gettimeofday(&t1,NULL);
+        for(int i=0;i<testTimes;i++){
+            ConvertInt8ToUint16(copyInt8_A,copyUint16_B,dataLen);
+        }
+        gettimeofday(&t2,NULL);
+        timeuse = (t2.tv_sec - t1.tv_sec)*1000000.0 + (t2.tv_usec - t1.tv_usec);
+        printTestResult("ConvertInt8ToUint16",timeuse);
+        //重新开辟一段内存将计算结果保存为了验证结果正确性
+        uint16 *res=new uint16[dataLen];
+       for(int i=0;i<dataLen;i++){
+           res[i]=copyUint16_B[i];
+           //copyUint16_B[i]=0;
+       }
+            
+        gettimeofday(&t1,NULL);
+        for(int i=0;i<testTimes;i++){
+            ConvertInt8ToUint16Neon(copyInt8_A,copyUint16_B,dataLen);
+        }
+        gettimeofday(&t2,NULL);
+        timeuse = (t2.tv_sec - t1.tv_sec)*1000000.0 + (t2.tv_usec - t1.tv_usec);
+        printTestResult("ConvertInt8ToUint16Neon",timeuse);
+        //验证结果的正确性
+        for(int i=0;i<gemmM;i++){
+                if(res[i]!=copyUint16_B[i])
+                    cout<<"ConvertInt8ToUint16 error"<<":i="<<i<<endl;
+        }
+        delete [] res;//释放开辟的内存块
+        cout<<endl;
+	}
+	
+    void TestConvertInt8ToUint8(){
+		struct timeval t1,t2;
+        double timeuse;
+        gettimeofday(&t1,NULL);
+        for(int i=0;i<testTimes;i++){
+            ConvertInt8ToUint8(copyInt8_A,copyUint8_B,dataLen);
+        }
+        gettimeofday(&t2,NULL);
+        timeuse = (t2.tv_sec - t1.tv_sec)*1000000.0 + (t2.tv_usec - t1.tv_usec);
+        printTestResult("ConvertInt8ToUint8",timeuse);
+        //重新开辟一段内存将计算结果保存为了验证结果正确性
+        uint8 *res=new uint8[dataLen];
+       for(int i=0;i<dataLen;i++){
+           res[i]=copyUint8_B[i];
+           //copyUint16_B[i]=0;
+       }
+            
+        gettimeofday(&t1,NULL);
+        for(int i=0;i<testTimes;i++){
+            ConvertInt8ToUint8Neon(copyInt8_A,copyUint8_B,dataLen);
+        }
+        gettimeofday(&t2,NULL);
+        timeuse = (t2.tv_sec - t1.tv_sec)*1000000.0 + (t2.tv_usec - t1.tv_usec);
+        printTestResult("ConvertInt8ToUint8Neon",timeuse);
+        //验证结果的正确性
+        for(int i=0;i<gemmM;i++){
+                if(res[i]!=copyUint8_B[i])
+                    cout<<"ConvertInt8ToUint8 error"<<":i="<<i<<endl;
+        }
+        delete [] res;//释放开辟的内存块
+        cout<<endl;
+	}
+    void TestConvertUint8ToInt8(){
+		struct timeval t1,t2;
+        double timeuse;
+        gettimeofday(&t1,NULL);
+        for(int i=0;i<testTimes;i++){
+            ConvertUint8ToInt8(copyUint8_A,copyInt8_B,dataLen);
+        }
+        gettimeofday(&t2,NULL);
+        timeuse = (t2.tv_sec - t1.tv_sec)*1000000.0 + (t2.tv_usec - t1.tv_usec);
+        printTestResult("ConvertUint8ToInt8",timeuse);
+        //重新开辟一段内存将计算结果保存为了验证结果正确性
+        uint8 *res=new uint8[dataLen];
+       for(int i=0;i<dataLen;i++){
+           res[i]=copyUint8_B[i];
+           //copyUint16_B[i]=0;
+       }
+            
+        gettimeofday(&t1,NULL);
+        for(int i=0;i<testTimes;i++){
+            ConvertUint8ToInt8Neon(copyUint8_A,copyInt8_B,dataLen);
+        }
+        gettimeofday(&t2,NULL);
+        timeuse = (t2.tv_sec - t1.tv_sec)*1000000.0 + (t2.tv_usec - t1.tv_usec);
+        printTestResult("ConvertUint8ToInt8Neon",timeuse);
+        //验证结果的正确性
+        for(int i=0;i<gemmM;i++){
+                if(res[i]!=copyUint8_B[i])
+                    cout<<"ConvertUint8ToInt8Neon error"<<":i="<<i<<endl;
+        }
+        delete [] res;//释放开辟的内存块
+        cout<<endl;
+	}
     float SumFloat32(float *array, int len)
     {
         float *arr=array;
@@ -1204,6 +1468,47 @@ public:
         // cout<<endl;
 
     }
+	
+	void CopyInt32(int * copyA,int *copyB,int len){
+        for(int i=0;i<len;i++)
+            copyB[i]=copyA[i];
+    }
+    void CopyInt32Neon(int * copyA,int *copyB,int len){
+        int *A=copyA;
+        int *B=copyB;
+        int dim4=len>>2;
+        int left4=len&3;
+        for(;dim4>0;dim4--){
+            int32x4_t vc=vld1q_s32(A);
+            A+=4;
+            vst1q_s32(B,vc);
+            B+=4;
+        }
+        for(;left4>0;left4--){
+            *B=*A;
+        }
+    }
+	
+	void CopyUint16(uint16 * copyA,uint16 *copyB,int len){
+        for(int i=0;i<len;i++)
+            copyB[i]=copyA[i];
+    }
+    void CopyUint16Neon(uint16 * copyA,uint16 *copyB,int len){
+        uint16 *A=copyA;
+        uint16 *B=copyB;
+        int dim8=len>>3;
+        int left8=len%(8);
+        for(;dim8>0;dim8--){
+            uint16x8_t vc=vld1q_u16(A);
+            vst1q_u16(B,vc);
+            A+=(8);
+            B+=(8);
+        }
+        for(;left8>0;left8--){
+            *B=*A;
+        }
+        cout<<int (copyB[1000000-1])<<endl;
+    }
 
     void CopyUint8(uint8 * copyA,uint8 *copyB,int len){
         for(int i=0;i<len;i++)
@@ -1225,6 +1530,216 @@ public:
         }
         cout<<int (copyB[1000000-1])<<endl;
     }
+
+	void MatrixMulFloat32(  float *vecA, float *vecB,float *vecC){
+	//4*4矩阵相乘中，neon算法中，由于寻址的原因，
+	//使得矩阵乘计算方式为：vecA的列乘vecB行；
+	//没有对矩阵进行转置，故下面算法通过：列乘行实现
+	
+        for(int i=0;i<4;i++){
+            for(int j=0;j<4;j++){
+                for(int m=0;m<4;m++){
+					//vecC[i*4+j]+=vecA[i*4+m]*vecB[m*4+j];
+					*(vecC+4*i+j) += (*(vecB+4*i+m)) * (*(vecA+m*4+j));
+                }
+            }
+        }
+    }
+
+	void MatrixMulFloat32Neon( const float *vecA, const float *vecB, float *vecC ){
+
+		float32x4_t a0, a1, a2, a3, b0, b1, b2, b3, r0, r1, r2, r3;
+		a0 = vld1q_f32(vecA);  /* col 0 of vecA */
+		a1 = vld1q_f32(vecA + 4); /* col 1 of vecA */
+		a2 = vld1q_f32(vecA + 8); /* col 2 of vecA */
+		a3 = vld1q_f32(vecA + 12); /* col 3 of vecA */
+
+		b0 = vld1q_f32(vecB);  /* col 0 of vecB */
+		b1 = vld1q_f32(vecB + 4);  /* col 1 of vecB */
+		b2 = vld1q_f32(vecB + 8);  /* col 2 of vecB */
+		b3 = vld1q_f32(vecB + 12); /* col 3 of vecB */
+		
+		/* compute all the cols in the order specified by compiler */
+		r0 = vmulq_lane_f32(a0, vget_low_f32(b0), 0);//寄存器a0的每个元素与寄存器b0中的索引为0的元素进行相乘操作，并返回
+		r0 = vmlaq_lane_f32(r0, a1, vget_low_f32(b0), 1);//寄存器a1的每个元素与寄存器b0中的索引为1的元素进行相乘操作，再与r中的元素对应相加，并返回
+		r0 = vmlaq_lane_f32(r0, a2, vget_high_f32(b0), 0);//vget_high_f32 取高两位
+		r0 = vmlaq_lane_f32(r0, a3, vget_high_f32(b0), 1);//以上四步实现：矩阵第一行与第一列的乘积、第二行乘第一列、3行*1列、4行*1列的乘积分别存入r0中
+		
+		r1 = vmulq_lane_f32(a0, vget_low_f32(b1), 0);
+		r1 = vmlaq_lane_f32(r1, a1, vget_low_f32(b1), 1);
+		r1 = vmlaq_lane_f32(r1, a2, vget_high_f32(b1), 0);
+		r1 = vmlaq_lane_f32(r1, a3, vget_high_f32(b1), 1);
+		
+		r2 = vmulq_lane_f32(a0, vget_low_f32(b2), 0);
+		r2 = vmlaq_lane_f32(r2, a1, vget_low_f32(b2), 1);
+		r2 = vmlaq_lane_f32(r2, a2, vget_high_f32(b2), 0);
+		r2 = vmlaq_lane_f32(r2, a3, vget_high_f32(b2), 1);
+		
+		r3 = vmulq_lane_f32(a0, vget_low_f32(b3), 0);
+		r3 = vmlaq_lane_f32(r3, a1, vget_low_f32(b3), 1);
+		r3 = vmlaq_lane_f32(r3, a2, vget_high_f32(b3), 0);
+		r3 = vmlaq_lane_f32(r3, a3, vget_high_f32(b3), 1);
+		
+		vst1q_f32(vecC, r0);
+		vst1q_f32(vecC + 4, r1);
+		vst1q_f32(vecC + 8, r2);
+		vst1q_f32(vecC + 12, r3);
+    }
+	
+	void CopyFloat32ToUint8(float * copyA,uint8 *copyB,int len){
+		for(int i=0;i<len;i++)
+            copyB[i]=copyA[i];
+	}
+	void CopyFloat32ToUint8Neon(float * copyA,uint8 *copyB,int len){
+		float *A=copyA;
+        uint8 *B=copyB;
+        int dim4=len>>3;//一次取8个元素
+        int left4=len%8;
+        for(;dim4>0;dim4--){
+            float32x4_t vc0=vld1q_f32(A);
+            A+=4;
+			float32x4_t vc1=vld1q_f32(A);
+			A+=4;
+			uint16x4_t temp0= vqmovn_u32( vcvtq_u32_f32(vc0) );//f32转u32,u32->u16
+			uint16x4_t temp1= vqmovn_u32( vcvtq_u32_f32(vc1) );
+			uint16x8_t temp=vcombine_u16(temp0,temp1);
+			uint8x8_t result=vqmovn_u16(temp);
+            vst1_u8(B,result);
+            B+=8;
+        }
+        for(;left4>0;left4--){
+            *B=*A;
+        }
+	}
+	void ConvertInt8ToUint16(int8 * copyA,uint16 *copyB,int len){
+		for(int i=0;i<len;i++)
+            if(copyA[i]<0)
+                 copyB[i]=0;
+            else
+                copyB[i]=copyA[i];
+	}
+    void ConvertInt8ToUint8(int8 * copyA,uint8 *copyB,int len){
+		for(int i=0;i<len;i++)
+            if( copyA[i]<0)
+                copyB[i]=0;
+            else
+                copyB[i]=copyA[i];
+	}
+    void ConvertUint8ToInt8(uint8 * copyA,int8 *copyB,int len){
+		for(int i=0;i<len;i++)
+            if( copyA[i]>CHAR_MAX)
+                copyB[i]=CHAR_MAX;
+            else
+                copyB[i]=copyA[i];
+	}
+    void ConvertInt8ToUint8Neon(int8 * copyA,uint8 *copyB,int len){
+        int8 *A=copyA;
+        uint8 *B=copyB;
+        int dim16=len>>4;//取16个数据
+        int left16=len%16;
+        for(;dim16>0;dim16--){
+            int8x16_t temp8x16=vld1q_s8(A);
+            int16x8_t temp16x8_l=vmovl_s8(vget_low_s8(temp8x16));
+            int16x8_t temp16x8_h=vmovl_s8(vget_high_s8(temp8x16));
+            uint8x8_t res8x8_l=vqmovun_s16(temp16x8_l);
+            uint8x8_t res8x8_h=vqmovun_s16(temp16x8_h);
+            vst1_u8(B,res8x8_l);
+            vst1_u8(B+8,res8x8_h);
+            A+=16;
+            B+=16;
+        }
+        for(;left16>0;left16--){
+            *B=*A;
+        }
+	}
+    void ConvertUint8ToInt8Neon(uint8 * copyA,int8 *copyB,int len){
+        uint8 *A=copyA;
+        int8 *B=copyB;
+        int dim16=len>>4;//取16个数据
+        int left16=len%16;
+        for(;dim16>0;dim16--){
+            uint8x16_t temp8x16=vld1q_u8(A);
+            uint16x8_t temp16x8_l=vmovl_u8(vget_low_u8(temp8x16));
+            uint16x8_t temp16x8_h=vmovl_u8(vget_high_u8(temp8x16));
+            int16x8_t temp16x8_l_int=vreinterpretq_s16_u16(temp16x8_l);
+            int16x8_t temp16x8_h_int=vreinterpretq_s16_u16(temp16x8_h);
+            int8x8_t res8x8_l=vqmovn_s16(temp16x8_l_int);
+            int8x8_t res8x8_h=vqmovn_s16(temp16x8_h_int);
+            vst1_s8(B,res8x8_l);
+            vst1_s8(B+8,res8x8_h);
+            A+=16;
+            B+=16;
+        }
+        for(;left16>0;left16--){
+            *B=*A;
+        }
+	}
+	void ConvertInt8ToUint16Neon(int8 * copyA,uint16 *copyB,int len){
+		int8 *A=copyA;
+        uint16 *B=copyB;
+        int dim8=len>>3;//一次取8个元素
+        int left8=len%8;
+        for(;dim8>0;dim8--){
+            
+			int8x8_t temp0 = vld1_s8(A);
+			int16x8_t temp1 = vmovl_s8(temp0);
+			//vget_low_s16取int16x8_t result寄存器中低位四个元素输出int16x4_t，vmovl_s16将int16x4_t转为int32x4_t
+			int32x4_t temp10=vmovl_s16( vget_low_s16(temp1));
+			int32x4_t temp11=vmovl_s16( vget_high_s16(temp1));
+			uint16x4_t result0=vqmovun_s32(temp10);
+			uint16x4_t result1=vqmovun_s32(temp11);
+			vst1_u16(B,result0);
+			vst1_u16(B+4,result1);
+			B+=8;
+			A+=8;
+        }
+		cout<<copyB[0]<<endl;
+        for(;left8>0;left8--){
+            *B=*A;
+        }
+	}
+	void TestVqmovn(){
+        int16x8_t a; 
+        uint8x8_t b;
+        uint8 temp;
+        a=vdupq_n_s16(257);
+        b=vdup_n_u8(0);
+        b=vqmovun_s16(a);
+        temp=vget_lane_u8(b,0);
+        cout<<"temp:="<<(int)temp<<endl;// 255 
+
+        a=vdupq_n_s16(-4);
+        b=vdup_n_u8(0);
+        b=vqmovun_s16(a);
+        temp=vget_lane_u8(b,0);//0
+        cout<<"temp:="<<(int)temp<<endl;// 0
+
+        int16x8_t a1;
+        int8x8_t b1;
+        signed char temp1;
+        a1=vdupq_n_s16(-4);
+        b1=vdup_n_s8(1);
+        b1=vqmovn_s16(a1);
+        temp1=vget_lane_s8(b1,0);//-4
+        cout<<"temp1:="<<(int)temp1<<endl;// -4
+        {
+            int8x16_t a2;
+            int8x8_t b2=vdup_n_s8(1);
+            int8x8_t c2=vdup_n_s8(2);
+            a2=vcombine_s8(b2,c2);
+            temp1=vgetq_lane_s8(a2,0);
+            cout<<"temp1:="<<(int)temp1<<endl;//1
+            temp1=vgetq_lane_s8(a2,8);
+            cout<<"temp1:="<<(int)temp1<<endl;//2
+        }
+        
+        {
+            int8x16_t x=vreinterpretq_s8_u8(vdupq_n_u8(128));
+            temp1=vgetq_lane_s8(x,0);
+            cout<<"temp1:="<<(int)temp1<<endl;//1
+        }
+        
+    }
      ~TestNeon(){
         delete [] arrFloat32;
         delete [] arrInt32;
@@ -1245,7 +1760,10 @@ public:
         delete [] vecAddUint8_B;
         delete [] vecAddUint8_C;
 
-
+		delete [] vecMatrixFloat32_A;
+		delete [] vecMatrixFloat32_B;
+		delete [] vecMatrixFloat32_C;
+		
         delete [] arr2DGemmFloat32_A[0];
         delete [] arr2DGemmFloat32_B[0];
         delete [] arr2DGemmFloat32_C[0];
@@ -1273,10 +1791,16 @@ public:
 
         delete [] copyFloat32_A;
         delete [] copyInt32_A;
+		delete [] copyInt16_A;
+		delete [] copyInt8_A;
+		delete [] copyUint32_A;
         delete [] copyUint16_A;
         delete [] copyUint8_A;
         delete [] copyFloat32_B;
         delete [] copyInt32_B;
+		delete [] copyInt16_B;
+		delete [] copyInt8_B;
+		delete [] copyUint32_B;
         delete [] copyUint16_B;
         delete [] copyUint8_B;
 
@@ -1302,6 +1826,10 @@ private:
         uint8 *vecAddUint8_A;
         uint8 *vecAddUint8_B;
         uint8 *vecAddUint8_C;
+		//matrixA mult
+		float  *vecMatrixFloat32_A;
+		float  *vecMatrixFloat32_B;
+		float  *vecMatrixFloat32_C;
         //arr2DGemm
         int gemmM;
         int gemmK;
@@ -1323,6 +1851,12 @@ private:
         float *copyFloat32_B;
         int *copyInt32_A;
         int *copyInt32_B;
+		int16 *copyInt16_A;
+        int16 *copyInt16_B;
+		int8 *copyInt8_A;
+		int8 *copyInt8_B;
+		uint32 *copyUint32_A;
+        uint32 *copyUint32_B;
         uint16 *copyUint16_A;
         uint16 *copyUint16_B;
         uint8 *copyUint8_A;
