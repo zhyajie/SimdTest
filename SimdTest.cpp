@@ -1,5 +1,4 @@
 
-#pragma GCC optimize(2)
 #include <iostream>
 #include <arm_neon.h> //需要的头文件
 #include <time.h>
@@ -229,6 +228,8 @@ public:
         TestConvertInt8ToUint8();
 
         TestConvertUint8ToInt8();
+		
+		TestVcvtf32();
 
     }
     void printTestResult(string info,double dur)
@@ -1740,6 +1741,29 @@ public:
         }
         
     }
+	void TestVcvtf32(){
+		float a[4]={2.2,-2.5,-3.5,4.7};
+		int b[4];
+		float32x4_t temp=vld1q_f32(a);
+		int32x4_t result=vcvtq_s32_f32(temp);
+		vst1q_s32(b,result);
+		for(int i=0;i<4;i++){
+			cout<<b[i]<<" ";
+		}
+		cout<<endl;
+		result= vcvtnq_s32_f32(temp);
+		vst1q_s32(b,result);
+		for(int i=0;i<4;i++){
+			cout<<b[i]<<" ";
+		}
+		cout<<endl;
+		result= vcvtaq_s32_f32(temp);
+		vst1q_s32(b,result);
+		for(int i=0;i<4;i++){
+			cout<<b[i]<<" ";
+		}
+		cout<<endl;
+	}
      ~TestNeon(){
         delete [] arrFloat32;
         delete [] arrInt32;
