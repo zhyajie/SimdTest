@@ -1045,7 +1045,7 @@ public:
             C[i]+=A[i]*B[i];
         }
     }
-	
+
 	void VecAddInt32Neon(int *vecA ,int *vecB,int *vecC,int len){
 		int *A=vecA;
         int *B=vecB;
@@ -1745,20 +1745,25 @@ public:
 		float a[4]={2.2,-2.5,-3.5,4.7};
 		int b[4];
 		float32x4_t temp=vld1q_f32(a);
-		int32x4_t result=vcvtq_s32_f32(temp);
+		int32x4_t result=vcvtq_s32_f32(temp);//四舍五入为0模式，即向0舍入；直接去小数部分
 		vst1q_s32(b,result);
+		cout<<"float32 -> int32(向0舍入)：";
 		for(int i=0;i<4;i++){
 			cout<<b[i]<<" ";
 		}
-		cout<<endl;
-		result= vcvtnq_s32_f32(temp);
+		cout<<endl;cout<<endl;
+		
+		result= vcvtnq_s32_f32(temp);//
 		vst1q_s32(b,result);
+		cout<<"float32 -> int32(舍入到与偶数相关的最近)：";
 		for(int i=0;i<4;i++){
 			cout<<b[i]<<" ";
 		}
-		cout<<endl;
-		result= vcvtaq_s32_f32(temp);
+		cout<<endl;cout<<endl;
+		
+		result= vcvtaq_s32_f32(temp);//四舍五入
 		vst1q_s32(b,result);
+		cout<<"float32 -> int32(四舍五入)：";
 		for(int i=0;i<4;i++){
 			cout<<b[i]<<" ";
 		}
